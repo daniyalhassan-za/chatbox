@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Box</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f0f0f0;
+        }
+        #chat-container {
+            width: 350px;
+            height: 500px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+        }
+        #chat-header {
+            background: #007bff;
+            color: white;
+            padding: 10px;
+            border-radius: 10px 10px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        #chat-box {
+            flex: 1;
+            padding: 10px;
+            overflow-y: scroll;
+        }
+        .message {
+            margin-bottom: 10px;
+            position: relative;
+            padding: 10px;
+            border-radius: 5px;
+            max-width: 80%;
+            word-wrap: break-word;
+        }
+        .message.sent {
+            background: #e1ffc7;
+            align-self: flex-end;
+        }
+        .message.received {
+            background: #ffffff;
+            border: 1px solid #ddd;
+            align-self: flex-start;
+        }
+        .message-options {
+            font-size: 12px;
+            color: blue;
+            cursor: pointer;
+            margin-left: 5px;
+        }
+        #message-input-container {
+            display: flex;
+            padding: 10px;
+            border-top: 1px solid #ddd;
+        }
+        #message-input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        #send-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            margin-left: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        #close-btn {
+            background: transparent;
+            border: none;
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+        }
+        #reply-container {
+            display: none;
+            background: #fff;
+            border-bottom: 1px solid #ddd;
+            padding: 5px;
+            font-size: 12px;
+            color: #555;
+        }
+        #reply-container.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div id="chat-container">
+        <div id="chat-header">
+            <span>Chat</span>
+            <button id="close-btn">&times;</button>
+        </div>
+        <div id="reply-container"></div>
+        <div id="chat-box"></div>
+        <div id="message-input-container">
+            <input type="text" id="message-input" placeholder="Type your message...">
+            <button id="send-btn">Send</button>
+        </div>
+    </div>
+    <script>
+        let ws;
+        let editingMessage = null;
+
+        function connect() {
+            ws = new WebSocket("ws://localhost:8000/ws");
+
+            ws.onmessage = function(event) {
+                const chatBox = document.getElementById('chat-box');
+                const message = document.createElement('div');
+                message.className = 'message received';
+                message.innerHTML = `${event.data} <span class="message-options">Reply</span> <span class="message-options">Edit</span> <span class="message-options">Delete</span>`;
+                chatBox.appendChild(message);
+                chatBox.scrollTop = chatBox.scrollHeight;
+            };
+
+            ws.onclose = function(event) {
+                setTimeout(connect, 1000); // Reconnect after 1 second
+            };
+
+            document.getElementById('send-btn').onclick = sendMessage;
+            document.getElementById('message-input').onkeypress = function(event) {
+                if (event.key === 'Enter') {
+                    sendMessage();
+                }
+            };
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('message-input');
+            if (editingMessage) {
+                editingMessage.innerHTML = `${input.value} <span class="message-options">Reply</span> <span class="message-options">Edit</span> <span class="message-options">Delete</span>`;
+                editingMessage = null;
+            } else {
+                ws.send(input.value);
+                const chatBox = document.getElementById('chat-box');
+                const message = document.createElement('div');
+                message.className = 'message sent';
+                message.innerHTML = `${input.value} <span class="message-options">Reply</span> <span class="message-options">Edit</span> <span class="message-options">Delete</span>`;
+                chatBox.appendChild(message);
+            }
+            input.value = '';
+            hideReplyContainer();
+        }
+
+        document.getElementById('close-btn').onclick = function() {
+            const chatContainer = document.getElementById('chat-container');
+            chatContainer.style.display = 'none';
+        };
+
+        document.addEventListener('click', function(event) {
+            if (event.target.classList.contains('message-options')) {
+                const messageElement = event.target.parentElement;
+                if (event.target.textContent === 'Delete') {
+                    messageElement.remove();
+                } else if (event.target.textContent === 'Reply') {
+                    const replyContainer = document.getElementById('reply-container');
+                    replyContainer.textContent = `Replying to: ${messageElement.textContent.trim().replace(' Reply Edit Delete', '')}`;
+                    replyContainer.classList.add('active');
+                } else if (event.target.textContent === 'Edit') {
+                    const input = document.getElementById('message-input');
+                    input.value = messageElement.textContent.trim().replace(' Reply Edit Delete', '');
+                    editingMessage = messageElement;
+                    input.focus();
+                }
+            }
+        });
+
+        function hideReplyContainer() {
+            const replyContainer = document.getElementById('reply-container');
+            replyContainer.classList.remove('active');
+            replyContainer.textContent = '';
+        }
+
+        connect();
+    </script>
+</body>
+</html>
+
